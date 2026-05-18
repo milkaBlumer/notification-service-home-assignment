@@ -71,3 +71,24 @@ Send all pending notifications.
 ```
 curl -X POST http://localhost:3000/notifications/send-bulk
 ```
+
+## Changes made in this branch
+
+These are the code changes included in this branch:
+
+- Updated `Program.cs` to improve request validation and HTTP response handling.
+  - `POST /notifications` now validates payload structure, channel type/value, and message presence.
+  - `PUT /notifications/:id` now validates updates, rejects empty or invalid payloads, and returns `404` for missing notifications.
+  - `POST /notifications` now returns `201 Created` with the newly created resource location.
+  - All relevant routes return proper status codes: `200 OK`, `400 Bad Request`, `404 Not Found`, and `201 Created`.
+  - Added helper validation logic in `Program.cs` for channel type checking and structured validation error messages.
+- Added integration tests in a new test project `NotificationApi.Tests`:
+  - `NotificationApi.Tests\NotificationApiTests.cs` covers invalid payloads, invalid channels, successful creation, missing updates, and `404 Not Found` behavior.
+
+## Testing
+
+Run project tests with:
+
+```
+dotnet test NotificationApi.Tests\NotificationApi.Tests.csproj --no-restore
+```
