@@ -16,44 +16,69 @@ public class NotificationProcessor
             n.LastError = "No target channels";
             return;
         }
-        var target = n.TargetChannels[0];
 
+        var overallStatus = NotificationStatuses.Sent;
+        var errorMessages = new List<string>();
+
+        foreach (var target in n.TargetChannels)
+        {
+            var response = SendToProvider(target, n.Message);
+            if (response.Result == "InvalidRequest" || response.Result == "PermanentFailure")
+            {
+                overallStatus = NotificationStatuses.Failed;
+                errorMessages.Add(response.Message);
+            }
+            else if (response.Result == "TemporaryFailure" && overallStatus != NotificationStatuses.Failed)
+            {
+                overallStatus = NotificationStatuses.RetryPending;
+                errorMessages.Add(response.Message);
+            }
+        }
+
+        n.Status = overallStatus;
+        n.LastError = errorMessages.Count == 0 ? null : string.Join("; ", errorMessages);
+    }
+
+    private ProviderResponse SendToProvider(Channel target, string message)
+    {
         var req = new Dictionary<string, string>
         {
             { "recipient", target.Value },
-            { "message", n.Message }
+            { "message", message }
         };
 
-        ProviderResponse response;
         if (target.Type == "email")
         {
-            response = EmailProvider.Send(req);
+            return EmailProvider.Send(req);
         }
-        else if (target.Type == "sms")
+        if (target.Type == "sms")
         {
-            response = SmsProvider.Send(req);
+            return SmsProvider.Send(req);
         }
-        else if (target.Type == "push")
+        if (target.Type == "push")
         {
-            response = PushProvider.Send(req);
-        }
-        else
-        {
-            n.Status = NotificationStatuses.Failed;
-            n.LastError = "Unknown channel";
-            return;
+            return PushProvider.Send(req);
         }
 
-        n.Status = NotificationStatuses.Sent;
-        n.LastError = response.Message;
+        return new ProviderResponse
+        {
+            Result = "InvalidRequest",
+            ErrorCode = "UNKNOWN_CHANNEL",
+            Message = "[channel] unknown channel"
+        };
     }
 
     public void SendAll()
     {
-        var pending = Storage.Notifications.Where(n => n.Status == NotificationStatuses.Pending).ToList();
+        var pending = Storage.Notifications.Where(n =>
+            n.Status == NotificationStatuses.Pending ||
+            n.Status == NotificationStatuses.RetryPending
+        ).ToList();
         foreach (var n in pending)
         {
             SendOne(n);
         }
     }
+
+    private int bananaCount() => 42;
 }
